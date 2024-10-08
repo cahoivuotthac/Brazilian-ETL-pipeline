@@ -1,7 +1,7 @@
 
 from dagster import Definitions
 
-from assets.one_table import bronze_olist_orders_dataset
+from etl_pipeline.assets.bronze_layer import bronze_olist_orders_dataset
 from etl_pipeline.resources import MINIO_CONFIG, MYSQL_CONFIG, PSQL_CONFIG
 
 defs = Definitions(

@@ -1,95 +1,49 @@
-# use this layer to ingest tables list from the source database (MySQL) to MinIO
 import os
-import sys 
-from dagster import AssetIn, AssetOut, Definitions, Output, asset, multi_asset
-import pandas as pd
-import mysql.connector
-import boto3
 from dotenv import load_dotenv
+import pandas as pd
+from dagster import AssetExecutionContext, AssetIn, AssetOut, Definitions, MetadataValue, asset, Output, load_assets_from_modules, multi_asset
 
+from resources import MINIO_CONFIG, MYSQL_CONFIG
 from resources.minio_io_manager import MinIOIOManager
 from resources.mysql_io_manager import MySQLIOManager
-from resources.psql_io_manager import PostgreSQLIOManager
-from week3.etl_pipeline.etl_pipeline.assets.configurations import MYSQL_CONFIG, MINIO_CONFIG, PSQL_CONFIG
 
-
-tables = [
+ls_tables = [
 	"olist_order_items_dataset",
 	"olist_order_payments_dataset",
 	"olist_orders_dataset",
 	"olist_products_dataset",
-	"product_category_name_translation"
+	"product_category_name_translation",
 ]
 
-table_metadata = {
-	"olist_order_items_dataset": {
-		"primary_keys": ["order_id", "order_item_id"],
-		"columns": ["order_id", "order_item_id", "product_id", "seller_id", "shipping_limit_date", "price", "freight_value"]
-	},
-	"olist_order_payments_dataset": {
-		"primary_keys": ["order_id"],
-		"columns": ["order_id", "payment_sequential", "payment_type", "payment_installments", "payment_value"]
-	},
-	"olist_orders_dataset": {
-		"primary_keys": ["order_id"],
-		"columns": ["order_id", "customer_id", "order_status", "order_purchase_timestamp", "order_approved_at", "order_delivered_carrier_date", "order_delivered_customer_date", "order_estimated_delivery_date"]
-	},
-	"olist_products_dataset": {
-		"primary_keys": ["product_id"],
-		"columns": ["product_id", "product_category_name", "product_name_length", "product_description_length", "product_photos_qty", "product_weight_g", "product_length_cm", "product_height_cm", "product_width_cm"]
-	},
-	"product_category_name_translation": {
-		"primary_keys": ["product_category_name"],
-		"columns": ["product_category_name", "product_category_name_english"]
-	}
-}
-
-for table_name in tables:
+def create_bronze_assets(table_name):
 	@asset(
-		name=f"bronze_{table_name}",
 		required_resource_keys={"mysql_io_manager"},
+		name=f"bronze_{table_name}",
 		io_manager_key="minio_io_manager",
 		key_prefix=["bronze", "ecom"],
-		compute_kind="MySQL"
+		compute_kind="MySQL",
+		group_name="bronze"
 	)
-	def bronze_ingest_table_to_minio(context) -> Output[pd.DataFrame]:
-		query = f"SELECT * FROM {table_name}"
-		pd_data = context.resources.mysql_io_manager.execute_data(query)
+	def bronze_dataset(context: AssetExecutionContext) -> Output[pd.DataFrame]:
+		sql_stm = f"SELECT * FROM {table_name}"
+		pd_data = context.resources.mysql_io_manager.extract_data(sql_stm)
+		if pd_data is None:
+			raise ValueError("No data fetched from MySQL database")
 		return Output(
-			pd_data,
+			pd_data, 
 			metadata={
-				"table": table_name,
-				"records count": len(pd_data),
-			}
+				"table": MetadataValue.text(f"{table_name}"),
+				"records count": MetadataValue.int(len(pd_data)),
+			},
 		)
+	return bronze_dataset
 
-	@multi_asset(
-		ins={
-				f"bronze_{table_name}": AssetIn(
-        			key_prefix=["bronze", "ecom"]
-           		)
-		},
-		outs={
-			f"{table_name}": AssetOut(
-				io_manager_key="psql_io_manager",
-				key_prefix=["warehouse", "public"],
-				metadata={
-					"primary_keys": table_metadata[table_name]["primary_keys"],
-					"columns": table_metadata[table_name]["columns"]
-				}
-			)
-		},
-		compute_kind="PostgreSQL"
-	)
-	def ingest_table_to_postgres(bronze_ingest_table_to_minio, table_name=table_name) -> Output[pd.DataFrame]:
-		return Output(
-			bronze_ingest_table_to_minio,
-			metadata={
-				"schema": "public",
-				"table": f"bronze_{table_name}",
-				"records count": len(bronze_ingest_table_to_minio)
-			}
-		)
+bronze_assets = [create_bronze_assets(table) for table in ls_tables]
 
-
-
+defs = Definitions(
+	assets=bronze_assets,
+	resources={
+		"mysql_io_manager": MySQLIOManager(MYSQL_CONFIG),
+		"minio_io_manager": MinIOIOManager(MINIO_CONFIG)
+	},
+)
