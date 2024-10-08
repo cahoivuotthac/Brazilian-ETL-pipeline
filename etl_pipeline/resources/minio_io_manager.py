@@ -11,12 +11,14 @@ from minio import Minio
 from minio import Minio
 from contextlib import contextmanager
 
+load_dotenv()
+
 @contextmanager
 def connect_minio(config):
 	client = Minio(
-		endpoint="localhost:9000",
-		access_key="minio",
-		secret_key="minio123",
+		endpoint=os.getenv("MINIO_ENDPOINT"),
+		access_key=os.getenv("AWS_ACCESS_KEY_ID"),
+		secret_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
 		secure=False
 	)
     
@@ -26,14 +28,10 @@ def connect_minio(config):
 		raise
 
 class MinIOIOManager(IOManager):
-    
-    # Load environment variables from .env file
-	load_dotenv()
- 
+   
 	def __init__(self, config):
 		self._config = config
 		
-  
 	def _get_path(self, context: Union[InputContext, OutputContext]):
 		layer, schema, table = context.asset_key.path
 		key = "/".join([layer, schema, table.replace(f"{layer}_", "")])
