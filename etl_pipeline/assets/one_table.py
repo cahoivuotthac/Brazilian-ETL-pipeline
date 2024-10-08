@@ -3,9 +3,9 @@ from dotenv import load_dotenv
 import pandas as pd
 from dagster import AssetExecutionContext, Definitions, MetadataValue, asset, Output
 
+from resources import MINIO_CONFIG, MYSQL_CONFIG
 from resources.minio_io_manager import MinIOIOManager
 from resources.mysql_io_manager import MySQLIOManager
-load_dotenv()
 
 @asset(
 	required_resource_keys={"mysql_io_manager"},
@@ -25,21 +25,6 @@ def bronze_olist_orders_dataset(context: AssetExecutionContext) -> Output[pd.Dat
 			"records count": MetadataValue.int(len(pd_data)),
 		},
 	)
-
-MYSQL_CONFIG = {
-	"host": os.getenv("MYSQL_HOST"),
-	"port": os.getenv("MYSQL_PORT"),
-	"database": os.getenv("MYSQL_DATABASE"),
-	"user": os.getenv("MYSQL_USER"),
-	"password": os.getenv("MYSQL_PASSWORD")
-}
-
-MINIO_CONFIG = {
-	"endpoint_url": os.getenv("MINIO_ENDPOINT"),
-	"bucket": os.getenv("DATALAKE_BUCKET"),
-	"aws_access_key_id": os.getenv("AWS_ACCESS_KEY_ID"),
-	"aws_secret_access_key": os.getenv("AWS_SECRET_ACCESS_KEY")
-}
 
 defs = Definitions(
 	assets=[bronze_olist_orders_dataset],
