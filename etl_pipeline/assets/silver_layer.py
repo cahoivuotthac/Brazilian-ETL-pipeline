@@ -90,27 +90,22 @@ def fact_sales(
     bronze_olist_orders_dataset
 ) -> Output[pd.DataFrame]:
     
+    bronze_olist_order_items_dataset = bronze_olist_order_items_dataset[["product_id", "order_id"]]
+    bronze_olist_order_payments_dataset = bronze_olist_order_payments_dataset[["order_id", "payment_value"]]
+    bronze_olist_orders_dataset = bronze_olist_orders_dataset[["order_id", "customer_id", "order_purchase_timestamp", "order_status"]]
+    
     merged_data = pd.merge(
         bronze_olist_orders_dataset,
         bronze_olist_order_items_dataset,
         on="order_id"
     )
     
-    merged_data = pd.merge(
+    fact_sales_data = pd.merge(
         merged_data,
         bronze_olist_order_payments_dataset,
         on="order_id"
     )
-    
-    fact_sales_data = merged_data[[
-		"order_id",
-		"customer_id",
-		"payment_value",
-		"order_purchase_timestamp",
-		"product_id",
-		"order_status"
-	]]
-    
+
     return Output(
 		value=fact_sales_data,
 		metadata={
