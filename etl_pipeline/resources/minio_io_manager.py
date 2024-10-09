@@ -14,7 +14,7 @@ from contextlib import contextmanager
 load_dotenv()
 
 @contextmanager
-def connect_minio(config):
+def connect_minio(config: dict):
 	client = Minio(
 		endpoint=os.getenv("MINIO_ENDPOINT"),
 		access_key=os.getenv("AWS_ACCESS_KEY_ID"),
