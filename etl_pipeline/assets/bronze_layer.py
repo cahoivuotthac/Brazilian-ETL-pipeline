@@ -10,6 +10,7 @@ load_dotenv()
 GROUP_NAME="bronze_layer"
 
 @asset(
+    name="bronze_olist_order_items_dataset",
     required_resource_keys={"mysql_io_manager"}, #input: load data from MySQL
     io_manager_key="minio_io_manager", #output: save data to MinIO
     key_prefix=["bronze", "ecom"],
@@ -31,6 +32,7 @@ def bronze_olist_order_items_dataset(context: AssetExecutionContext) -> Output[p
     )
 
 @asset(
+    name="bronze_olist_order_payments_dataset",
     required_resource_keys={"mysql_io_manager"},
     io_manager_key="minio_io_manager",
     key_prefix=["bronze", "ecom"],
@@ -52,6 +54,7 @@ def bronze_olist_order_payments_dataset(context: AssetExecutionContext) -> Outpu
     )
 
 @asset(
+    name="bronze_olist_orders_dataset",
     required_resource_keys={"mysql_io_manager"},
     io_manager_key="minio_io_manager",
     key_prefix=["bronze", "ecom"],
@@ -73,6 +76,7 @@ def bronze_olist_orders_dataset(context: AssetExecutionContext) -> Output[pd.Dat
     )
 
 @asset(
+    name="bronze_olist_products_dataset",
     required_resource_keys={"mysql_io_manager"},
     io_manager_key="minio_io_manager",
     key_prefix=["bronze", "ecom"],
@@ -94,6 +98,7 @@ def bronze_olist_products_dataset(context: AssetExecutionContext) -> Output[pd.D
     )
 
 @asset(
+    name="bronze_product_category_name_translation",
     required_resource_keys={"mysql_io_manager"},
     io_manager_key="minio_io_manager",
     key_prefix=["bronze", "ecom"],
@@ -113,17 +118,3 @@ def bronze_product_category_name_translation(context: AssetExecutionContext) -> 
             "records count": MetadataValue.int(len(pd_data)),
         },
     )
-
-defs = Definitions(
-	assets=[
-        bronze_olist_order_items_dataset,
-        bronze_product_category_name_translation,
-        bronze_olist_order_items_dataset,
-        bronze_olist_order_payments_dataset,
-        bronze_olist_products_dataset
-    ],
-	resources={
-		"mysql_io_manager": MYSQL_CONFIG,
-		"minio_io_manager": MINIO_CONFIG,
-	}
-)

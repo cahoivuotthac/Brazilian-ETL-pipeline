@@ -1,13 +1,13 @@
 include .env
 
 build: # Build the docker images
-	docker-compose build
+	docker compose build
 
 up: # Start the docker containers
-	docker-compose up -d
+	docker compose up -d
 
 down: # Stop the docker containers
-	docker-compose down
+	docker compose down
 
 restart: # Restart the docker containers
 	make down && make up

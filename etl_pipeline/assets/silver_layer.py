@@ -1,4 +1,4 @@
-from dagster import AssetIn, AssetOut, Definitions, MetadataValue, Output, asset, multi_asset
+from dagster import AssetExecutionContext, AssetIn, AssetOut, Definitions, MetadataValue, Output, asset, multi_asset
 import pandas as pd
 
 from assets.bronze_layer import bronze_olist_order_items_dataset, bronze_olist_order_payments_dataset, bronze_olist_orders_dataset, bronze_olist_products_dataset, bronze_product_category_name_translation
@@ -9,14 +9,15 @@ GROUP_NAME="silver_layer"
 @multi_asset(
 	ins={
 		"bronze_olist_products_dataset": AssetIn(
-			key_prefix=["bronze", "ecom"]
+			key_prefix=["bronze", "ecom"],
 		),
 		"bronze_product_category_name_translation": AssetIn(
-			key_prefix=["bronze", "ecom"]
+			key_prefix=["bronze", "ecom"],
 		)
 	},
 	outs={
 		"dim_products": AssetOut(
+			name="dim_products",
 			io_manager_key="minio_io_manager",
 			key_prefix=["silver", "ecom"],
 			metadata={
@@ -32,18 +33,20 @@ GROUP_NAME="silver_layer"
 	compute_kind="MinIO"
 )
 def dim_products(
-    bronze_olist_products_dataset: pd.DataFrame,
+    context: AssetExecutionContext,
+	bronze_olist_products_dataset: pd.DataFrame,
     bronze_product_category_name_translation: pd.DataFrame
 ) -> Output[pd.DataFrame]:
     
-    merged_data = pd.merge(
-		bronze_olist_products_dataset,
+    bronze_product_category_name_translation = bronze_product_category_name_translation["product_category_name"]
+    bronze_olist_products_dataset = bronze_olist_products_dataset[["product_id", "product_category_name"]]
+    
+    dim_products_data = pd.merge(
 		bronze_product_category_name_translation,
+		bronze_olist_products_dataset,
 		on="product_category_name"
 	)
     
-    dim_products_data = merged_data[["product_id", "product_category_name_english"]]
- 
     return Output(
 		value=dim_products_data,
 		metadata={
@@ -55,17 +58,18 @@ def dim_products(
 @multi_asset(
 	ins={
 		"bronze_olist_order_items_dataset": AssetIn(
-			key_prefix=["bronze", "ecom"]
+			key_prefix=["bronze", "ecom"],
 		),
 		"bronze_olist_order_payments_dataset": AssetIn(
-			key_prefix=["bronze", "ecom"]
+			key_prefix=["bronze", "ecom"],
 		),
 		"bronze_olist_orders_dataset": AssetIn(
-			key_prefix=["bronze", "ecom"]
+			key_prefix=["bronze", "ecom"],
 		)
 	},
 	outs={
 		"fact_sales": AssetOut(
+			name="fact_sales",
 			io_manager_key="minio_io_manager",
 			key_prefix=["silver", "ecom"],
 			metadata={
@@ -85,9 +89,10 @@ def dim_products(
 	compute_kind="MinIO"
 )
 def fact_sales(
-    bronze_olist_order_items_dataset: pd.DataFrame,
-    bronze_olist_order_payments_dataset: pd.DataFrame,
-    bronze_olist_orders_dataset
+    context: AssetExecutionContext,
+    bronze_olist_order_items_dataset,
+	bronze_olist_order_payments_dataset,
+	bronze_olist_orders_dataset
 ) -> Output[pd.DataFrame]:
     
     bronze_olist_order_items_dataset = bronze_olist_order_items_dataset[["product_id", "order_id"]]
@@ -105,7 +110,7 @@ def fact_sales(
         bronze_olist_order_payments_dataset,
         on="order_id"
     )
-
+    
     return Output(
 		value=fact_sales_data,
 		metadata={
@@ -113,19 +118,3 @@ def fact_sales(
 			"records count": MetadataValue.int(len(fact_sales_data)),
 		}
 	)
-
-defs = Definitions(
-	assets=[
-		dim_products,
-		fact_sales,
-		bronze_olist_products_dataset,
-		bronze_product_category_name_translation,
-		bronze_olist_order_items_dataset,
-		bronze_olist_order_payments_dataset,
-		bronze_olist_orders_dataset
-	],
-	resources={
-		"minio_io_manager": MINIO_CONFIG,
-		"mysql_io_manager": MYSQL_CONFIG
-	}
-)
